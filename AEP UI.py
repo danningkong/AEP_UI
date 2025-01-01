@@ -74,7 +74,9 @@ class initiate:
         global scope
         global sandBox
 
-        load_dotenv(r"C:\Shared\Python\config.env")
+        configPath = os.path.join(os.getcwd(),"config.env")
+        # load_dotenv(r"C:\Shared\Python\config.env")
+        load_dotenv(configPath)
         if companyName == "CBA":
             apiKey=os.getenv('cba-x-api-key')
             orgId=os.getenv('cba-x-gw-ims-org-id')
@@ -105,6 +107,7 @@ destLandingZoneEndPoint=os.getenv('destLandingZoneEndPoint')
 dataflowEndPoint = os.getenv('dataflowEndPoint')
 schemaEndPoint = os.getenv('schemaEndPoint')
 imsEndPoint=os.getenv('imsEndPoint')
+segmentDefinitionEndPoint = os.getenv('segmentDefinitionEndPoint')
 # List endpoints here
 
 # clientSecret = os.getenv('cba-client-secret')
@@ -123,7 +126,9 @@ class loadAGGrid:
         global orgId
         global sandBox
 
-        load_dotenv(r"C:\Shared\Python\config.env")
+        configPath = os.path.join(os.getcwd(),"config.env")
+        # load_dotenv(r"C:\Shared\Python\config.env")
+        load_dotenv(configPath)
         # apiKey=os.getenv('cba-x-api-key')
         # orgId=os.getenv('cba-x-gw-ims-org-id')
         contentType=os.getenv('Content-Type')
@@ -156,7 +161,9 @@ class loadAGGrid:
     def loadData(self,menuSelected=None)->None:
         global oAuthToken
         
-        load_dotenv(r"C:\Shared\Python\config.env")
+        configPath = os.path.join(os.getcwd(),"config.env")
+        # load_dotenv(r"C:\Shared\Python\config.env")
+        load_dotenv(configPath)
         # apiKey=os.getenv('cba-x-api-key')
         # orgId=os.getenv('cba-x-gw-ims-org-id')
         firstInstance = initiate()
@@ -173,6 +180,7 @@ class loadAGGrid:
         schemaEndPoint = os.getenv('schemaEndPoint')
         imsEndPoint=os.getenv('imsEndPoint')
         destLandingZoneEndPoint=os.getenv('destLandingZoneEndPoint')
+        segmentDefinitionEndPoint = os.getenv('segmentDefinitionEndPoint')
         # List endpoints here
 
         # clientSecret = os.getenv('cba-client-secret')
@@ -219,6 +227,9 @@ class loadAGGrid:
         elif menuSelected == 'List Files In Destination Landing Zone':
             datasetResponse = adobeInstance.MakeAPIGetCall(url=destLandingZoneEndPoint,header=header,proxy=proxy,companyName=companyName)
             datasetList = adobeInstance.GetLandZoneFiles(apiResponse=datasetResponse)
+        elif menuSelected == 'List Audiences':
+            datasetResponse = adobeInstance.MakeAPIGetCall(url=segmentDefinitionEndPoint,header=header,proxy=proxy,companyName=companyName)
+            datasetList = adobeInstance.GetAudience(apiResponse=datasetResponse)
         df = pd.DataFrame(datasetList)
         rawList = df.columns.tolist() 
         gridHeader = {}
@@ -391,7 +402,7 @@ class local_file_picker(ui.dialog):
             result = self.UploadToLandingZone(apiResponse=datasetResponse,filePath=filePath)
             self.submit([r['path'] for r in rows])
 
-menuList = ['Get Method:','List All Datasets','List All Segment Schedules','List All Dataflows','List All Schemas','List Files In Landing Zone','List Files In Destination Landing Zone','Post Method:']
+menuList = ['Get Method:','List All Datasets','List All Segment Schedules','List All Dataflows','List All Schemas','List Files In Landing Zone','List Files In Destination Landing Zone','List Audiences','Post Method:']
 @ui.page('/')
 def page():
     def handleMenuClick(menuText):
@@ -425,9 +436,13 @@ def page():
 
     async def output_selected_row():
         row = await grid.get_selected_row()
+        selectedRowList= []
         if row:
             for (key,value) in row.items():
+                tempDict = {}
+                tempDict[key] = value
                 ui.notify(f"{key}: {value}")
+            selectedRowList.append(tempDict)
         else:
             ui.notify('No row selected!')
         # return row
@@ -665,6 +680,8 @@ def page():
         copy = ui.button('Copy Cell',on_click=copy_cell,icon='share')
         copy.visible = False
         download = ui.button('Download Blob',on_click=download_blob_async,icon='share')
+        download.visible = False
+        manualEvaluate = ui.button('Manual Evaluate',on_click=download_blob_async,icon='share')
         download.visible = False
 
 

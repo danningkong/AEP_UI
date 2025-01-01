@@ -14,24 +14,14 @@ from pathlib import Path
 from typing import Optional
 import win32api
 from nicegui import events, ui
+import warnings
+import urllib3
 
 global oAuthToken
 oAuthToken='';
-# companyName = "CBA"
 
-# load_dotenv(r"C:\Shared\Python\config.env")
-# if companyName == "CBA":
-#     apiKey=os.getenv('cba-x-api-key')
-#     orgId=os.getenv('cba-x-gw-ims-org-id')
-#     clientSecret = os.getenv('cba-client-secret')
-#     scope = os.getenv('cba-scope')
-#     sandBox=os.getenv('cba-x-sandbox-name')
-# elif companyName == "Commsec":
-#     apiKey=os.getenv('commsec-x-api-key')
-#     orgId=os.getenv('commsec-x-gw-ims-org-id')
-#     clientSecret = os.getenv('commsec-client-secret')
-#     scope = os.getenv('commsec-scope')
-#     sandBox=os.getenv('commsec-x-sandbox-name')
+# Suppress only the InsecureRequestWarning from urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 contentType=os.getenv('Content-Type')
 # sandBox=os.getenv('x-sandbox-name')
@@ -359,7 +349,44 @@ class adobe:
             print("An error occurred: ", AttributeError)
             # datasetNameList.append(value["name"])
         return segmentScheduleList
+
+    def GetAudience(self,apiResponse):
+        global audience
+        # global landingZoneCred
+
+        # try:
+        audienceScheduleList = []
+        data = json.loads(apiResponse)
+
+        for x in data['segments']:
+            tempDict = {}
+            tempDict["AudienceID"] = x["id"]
+            tempDict["Audience Name"] = x["name"]
+            tempDict["State"] = x["lifecycleState"]
+            if len(x["dependencies"])>0:
+                for y in x["dependencies"]:
+
+                    tempDict["dependencies"] = x["dependencies"]
+            if "metrics" in x:
+                for y in x["metrics"]["data"]:
+                    # if "totalProfiles" in y:
+                        # tempDict["Total Profiles"] = x["metrics"]["data"]["totalProfiles"]
+                        # tempDict[y] = x["metrics"]["data"]["totalProfiles"]
+                    if "totalProfilesByStatus" in y:
+                        if  "realized" in x["metrics"]["data"]["totalProfilesByStatus"]:
+                            tempDict["Realized"] = x["metrics"]["data"]["totalProfilesByStatus"]["realized"]
+                        if "exited" in x["metrics"]["data"]["totalProfilesByStatus"]:
+                            tempDict["Exited"] = x["metrics"]["data"]["totalProfilesByStatus"]["exited"]
+
+            audienceScheduleList.append(tempDict)
+        # except:
+        #     print("An error occurred: ",excep)
+            # datasetNameList.append(value["name"])
+        return audienceScheduleList
     
+    def GetDependency(self):
+
+        self.MakeAPIGetCall(url=segmentDefinitionEndPoint,header=header,proxy=proxy,companyName=companyName)
     # async def copy_cell(self):
     #     header={}
     #     adobeInstance = adobe(apiKey=apiKey,orgId=orgId,contentType=contentType,sandBox=sandBox,url=imsEndPoint,proxy=proxy)
