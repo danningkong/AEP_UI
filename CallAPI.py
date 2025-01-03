@@ -384,9 +384,22 @@ class adobe:
             # datasetNameList.append(value["name"])
         return audienceScheduleList
     
-    def GetDependency(self):
+    def GetDependency(self,apiResponse):
+        data = json.loads(apiResponse)
+        tempDict = {}
+        audienceScheduleList = []
+        if "id" in data:
+            tempDict["id"] = data["id"]
+        if "name" in data:
+            tempDict["name"] = data["name"]
+        if "lifecycle" in data:
+            tempDict["lifecycle"] = data["lifecycle"]
+        if "dependencies" in data:
+            tempDict["dependencies"] = data["dependencies"]
+        audienceScheduleList.append(tempDict)
+        return audienceScheduleList
 
-        self.MakeAPIGetCall(url=segmentDefinitionEndPoint,header=header,proxy=proxy,companyName=companyName)
+        
     # async def copy_cell(self):
     #     header={}
     #     adobeInstance = adobe(apiKey=apiKey,orgId=orgId,contentType=contentType,sandBox=sandBox,url=imsEndPoint,proxy=proxy)
