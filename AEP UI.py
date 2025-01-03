@@ -15,7 +15,7 @@ import pyperclip
 from pathlib import Path
 import platform
 import win32api
-from nicegui import events, ui
+from nicegui import events, ui, ElementFilter
 
 
 # inject_layout_tool()
@@ -25,10 +25,14 @@ global datasetNameList
 datasetNameList = []
 global gridHeaderList 
 gridHeaderList = []
+global depgridHeaderList
+depgridHeaderList = []
 global calledFunc
 calledFunc = ''
 global dtdict
 dtdict = []
+global datadict
+datadict = []
 global gridHeader
 global df
 df = pd.DataFrame()
@@ -93,6 +97,11 @@ class initiate:
             # orgId=os.getenv('commsec-x-gw-ims-org-id')
             if sandBox =='':
                 sandBox=os.getenv('commsec-x-sandbox-name')
+
+configPath = os.path.join(os.getcwd(),"config.env")
+# load_dotenv(r"C:\Shared\Python\config.env")
+load_dotenv(configPath)
+
 # apiKey=os.getenv('cba-x-api-key')
 # orgId=os.getenv('cba-x-gw-ims-org-id')
 contentType=os.getenv('Content-Type')
@@ -447,6 +456,64 @@ def page():
             ui.notify('No row selected!')
         # return row
 
+    async def get_selected_audience():
+        row = await grid.get_selected_row()
+        global oAuthToken 
+        oAuthToken = None
+        global header 
+        header = {}
+        imsEndPoint=os.getenv('imsEndPoint')
+        imsEndPoint = imsEndPoint.format(API_KEY=apiKey,CLIENT_SECRET=clientSecret,SCOPE=scope)
+        adobeInstance = api.adobe(apiKey=apiKey,orgId=orgId,contentType=contentType,sandBox=sandBox,url=imsEndPoint,proxy=proxy,companyName=companyName)
+        oAuthToken = adobeInstance.RetrieveAccessToken()
+        datasetList = []
+        depgridHeaderList = []
+        if row:
+
+            dependency_grid.visible = True
+            header={}
+            header['Content-Type']=contentType
+            header['x-gw-ims-org-id']=orgId
+            header['x-api-key']=apiKey
+            header['x-sandbox-name']=sandBox
+            header['Authorization']="Bearer "+oAuthToken
+            for x in row["dependencies"]:
+                NewsegmentDefinitionEndPoint = segmentDefinitionEndPoint + "/" + x.replace("'","")
+                datasetResponse = adobeInstance.MakeAPIGetCall(url=NewsegmentDefinitionEndPoint,header=header,proxy=proxy,companyName=companyName)
+                if len(datasetList) == 0:
+                    datasetList = adobeInstance.GetDependency(apiResponse=datasetResponse)
+                else:
+                    datasetList.extend(adobeInstance.GetDependency(apiResponse=datasetResponse))
+                # datasetList.append(tempDatasetList)
+            if len(datasetList)>0:
+                df = pd.DataFrame(datasetList)
+                rawList = df.columns.tolist() 
+                gridHeader = {}
+                i = 1
+                for x in rawList:
+                    if i == 1:
+                        gridHeader = {}
+                        gridHeader["headerName"] = x
+                        gridHeader["field"] = x
+                        gridHeader["checkboxSelection"] = True
+                        gridHeader["checkboxSelection"] = True
+                        gridHeader["checkboxSelection"] = True
+                        depgridHeaderList.append(gridHeader)
+                    else:
+                        gridHeader = {}
+                        gridHeader["headerName"] = x
+                        gridHeader["field"] = x
+                        depgridHeaderList.append(gridHeader)
+
+                    gridHeader["filter"] = 'agTextColumnFilter'
+                    gridHeader["floatingFilter"] = True
+                    i+=1
+
+                dtdict = df.to_dict(orient='records')
+            else:
+                dtdict = {}
+            return dtdict, depgridHeaderList
+
     async def selected_blob():
         global downloadBlobName
         row = await grid.get_selected_row()
@@ -591,6 +658,43 @@ def page():
         header['x-sandbox-name']=sandBox
         header['Authorization']="Bearer "+oAuthTokenNew
         datasetResponse = adobeInstance.MakeAPIGetCall(url=landingZoneEndPoint,header=header,proxy=proxy,companyName=companyName)
+        grid_id_1 = grid.id
+        grid_id_2 = dependency_grid.id
+        test = ElementFilter(kind=ui.aggrid).within(marker='important').classes('text-xl')
+        for aggrid in ElementFilter(kind=ui.span):
+            # Use JavaScript to check if the active element is within the aggrid element
+            is_focused = await ui.run_javascript(f'''
+                (function() {{
+                    var aggridElements = document.querySelectorAll('.ag-root-wrapper'); // Select all ag-Grid root elements
+                    for (var i = 0; i < aggridElements.length; i++) {{
+                        if (aggridElements[i].contains(document.activeElement)) {{
+                            return true;
+                        }}
+                    }}
+                    return false;
+                }})();
+            ''', timeout=10000)
+
+            if is_focused:
+                print(f'AgGrid with id {aggrid.id} is in focus')
+            else:
+                print(f'AgGrid with id {aggrid.id} is not in focus')
+
+            activeGrid = await ui.run_javascript(f'''
+                (function() {{
+                    var activeElement = document.activeElement;
+                    var grid1 = document.getElementById('{grid_id_1}');
+                    var grid2 = document.getElementById('{grid_id_2}');
+                    if (grid1 && grid1.contains(activeElement)) {{
+                        return '{grid_id_1}';
+                    }} else if (grid2 && grid2.contains(activeElement)) {{
+                        return '{grid_id_2}';
+                    }} else {{
+                        return null;
+                    }}
+                }})();
+            ''', timeout=10000)
+            
         focused_cell = await ui.run_javascript(f'''
         var focusedCell = getElement({grid.id}).gridOptions.api.getFocusedCell();
         if (focusedCell) {{
@@ -601,7 +705,7 @@ def page():
         }} else {{
             return null;
         }}
-    ''', timeout=2000)
+    ''', timeout=10000)
     
         if focused_cell:
             pyperclip.copy(focused_cell)
@@ -629,6 +733,16 @@ def page():
                 sandBox = "cs-dev"
             ui.notify(f'Sandbox Name: {sandBox}')
         # return aa.value
+
+    async def list_dependency_audience(source):
+        datadict, depgridHeaderList = await get_selected_audience()
+        agInstance = loadAGGrid(depgridHeaderList,datadict)
+        dependency_grid.options['columnDefs'] = depgridHeaderList
+        dependency_grid.options['rowData'] = datadict
+        dependency_grid.options['enableRangeSelection'] = True
+        dependency_grid.update()
+
+
 
     demo = Demo()
     with ui.row():
@@ -670,6 +784,20 @@ def page():
                         'pagination':True,
                         'paginationPageSize': 15
                     }).style("font-size:1.1rem;color:#47ff9d;width:1680px").classes('max-h-1400')
+
+                    ui.label('Dependencies of selected audience:').style("font-size:1.1rem;color:#006cd6;align-self:left")
+                    dependency_grid = ui.aggrid({
+                        'defaultColDef': {'resizable': True},
+                        'columnDefs': depgridHeaderList,
+                        'rowData': datadict,
+                        'rowSelection': 'multiple',
+                        'enableRangeSelection': True,
+                        # 'checkboxSelection': True,
+                        # 'showDisabledCheckboxes': True,
+                        'pagination':True,
+                        'paginationPageSize': 15
+                    }).style("font-size:1.1rem;color:#47ff9d;width:1680px").classes('max-h-1400')
+                    # dependency_grid.visible = False
                     # grid.options['enableRangeSelection'] = True
 
         selectedRow = ui.button('Get Selected Row', on_click=output_selected_row)
@@ -681,7 +809,7 @@ def page():
         copy.visible = False
         download = ui.button('Download Blob',on_click=download_blob_async,icon='share')
         download.visible = False
-        manualEvaluate = ui.button('Manual Evaluate',on_click=download_blob_async,icon='share')
+        manualEvaluate = ui.button('Manual Evaluate',on_click=list_dependency_audience,icon='share')
         download.visible = False
 
 
